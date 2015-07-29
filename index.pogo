@@ -8,7 +8,7 @@ Greenhouse.prototype = {
 
   resolve (name) =
     detectCircularDependencies (self, name)
-    resolveModule (self, name)
+    resolveModuleNamed (self, name)
 
   dependenciesOf (name) = dependenciesOf (self, name)
 
@@ -16,30 +16,14 @@ Greenhouse.prototype = {
 
   moduleNames () = Object.keys(self.modules).sort()
 
-  module (definition) =
-    unresolveDependants (self, 'greenhouse')
-    existingModule = self.modules.(definition.name)
-    if (existingModule)
-      unresolveDependants (self, definition.name)
-      delete (existingModule.resolved)
-      delete (existingModule.dependencies)
-      existingModule.body = definition.body
-    else
-      definition.id = nextId ()
-      self.modules.(definition.name) = definition
+  module (definition) = defineModule (self, definition)
 
   remove (name) =
     unresolveDependants (self, 'greenhouse')
     unresolveDependants (self, name)
     delete (self.modules.(name))
 
-  rename (oldName, newName) =
-    unresolveDependants (self, 'greenhouse')
-    unresolveDependants (self, oldName)
-    existing = self.modules.(oldName)
-    delete (self.modules.(oldName))
-    existing.name = newName
-    self.modules.(newName) = existing
+  rename (oldName, newName) = renameModule (self, oldName, newName)
 
   toString() = "Greenhouse"
 
@@ -49,26 +33,53 @@ nextId () =
   nextId.id = (nextId.id @or 0) + 1
   nextId.id
 
-resolveModule (repo, name) =
-  target = repo.modules.(name)
-  if (target)
-    if (!target.resolved)
-      resolveTarget (repo, target)
+defineModule (repo, definition) =
+  unresolveDependants (repo, 'greenhouse')
+  existingModule = repo.modules.(definition.name)
+  if (existingModule)
+    unresolveDependants (repo, definition.name)
+    delete (existingModule.resolved)
+    delete (existingModule.dependencies)
+    existingModule.body = definition.body
+  else
+    definition.id = nextId ()
+    repo.modules.(definition.name) = definition
+    parseModuleDependencies (repo, definition)
 
-    target.resolved
+resolveModuleNamed (repo, name) =
+  mod = repo.modules.(name)
+  if (mod)
+    if (!mod.resolved)
+      resolveModule (repo, mod)
+
+    mod.resolved
   else
     @throw @new Error "Module '#(name)' does not exist"
+
+renameModule (repo, oldName, newName) =
+  unresolveDependants (repo, 'greenhouse')
+  unresolveDependants (repo, oldName)
+  existing = repo.modules.(oldName)
+  delete (repo.modules.(oldName))
+  existing.name = newName
+  repo.modules.(newName) = existing
 
 dependenciesOf (repo, name) =
   m = repo.modules.(name)
   if (m)
     if (!m.dependencies @and m.body :: String)
-      try
-        m.dependencies = esglobals "function _() { #(m.body) }"
-      catch (e)
-        m.dependencies = []
+      parseModuleDependencies(repo, m)
 
   (m @and m.dependencies) || []
+
+parseModuleDependencies (repo, m) =
+  if (m.body)
+    try
+      m.dependencies = esglobals "function _() { #(m.body) }"
+    catch (e)
+      m.dependencies = []
+  else
+    m.dependencies = []
 
 allDependenciesOf (repo, name) =
   deps = []
@@ -86,17 +97,17 @@ detectCircularDependencies (repo, name) =
   if (allDependenciesOf (repo, name).indexOf (name) > -1)
     @throw @new Error("Circular dependency in module '#(name)'")
 
-resolveTarget (repo, target) =
-  if (@not target.resolved)
+resolveModule (repo, mod) =
+  if (@not mod.resolved)
 
-    if (@not target.dependencies)
-      target.dependencies = esglobals "function _() { #(target.body) }"
+    if (@not mod.dependencies)
+      parseModuleDependencies (repo, mod)
 
-    factory = @new Function(target.dependencies, target.body)
+    factory = @new Function(mod.dependencies, mod.body)
     resolvedDependencies = []
-    for each @(dep) in (target.dependencies)
+    for each @(dep) in (mod.dependencies)
       try
-        r = resolveModule (repo, dep)
+        r = resolveModuleNamed (repo, dep)
       catch (e)
         if (e.toString().match(r/Module '.+' does not exist$/))
           @throw @new Error("Dependency '#(dep)' does not exist")
@@ -105,7 +116,7 @@ resolveTarget (repo, target) =
 
       resolvedDependencies.push (r)
 
-  target.resolved = factory.apply (null, resolvedDependencies)
+  mod.resolved = factory.apply (null, resolvedDependencies)
 
 unresolveDependants (repo, name) =
   for each @(key) in (Object.keys(repo.modules))
