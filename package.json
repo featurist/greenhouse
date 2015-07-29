@@ -1,0 +1,21 @@
+{
+  "name": "greenhouse",
+  "version": "1.0.0",
+  "description": "reactive dependency inversion container",
+  "main": "index.js",
+  "scripts": {
+    "test": "mocha"
+  },
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "bluebird": "^2.9.33",
+    "chai": "^3.0.0",
+    "mocha": "^2.2.5",
+    "pogo": "^0.9.10"
+  },
+  "dependencies": {
+    "esglobals": "^1.1.0",
+    "esprima": "^2.4.1"
+  }
+}

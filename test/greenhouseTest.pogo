@@ -1,0 +1,179 @@
+expect = require 'chai'.expect
+Greenhouse = require '../'
+
+describe 'Greenhouse'
+
+  house = nil
+  beforeEach
+    house := @new Greenhouse
+
+  it 'resolves modules without dependencies'
+    house.module { name = 'x', body = 'return "hello!"' }
+    expect(house.resolve 'x').to.equal 'hello!'
+
+  it 'resolves modules with dependencies'
+    house.module { name = 'x', body = 'return 123' }
+    house.module { name = 'y', body = 'return x + 1' }
+    expect(house.resolve 'y').to.equal 124
+
+  it 'finds dependencies without resolving them'
+    house.module { name = 'a', body = 'return b + c' }
+    expect(house.dependenciesOf 'a').to.eql ['b', 'c']
+
+  it 'finds all dependencies without resolving them'
+    house.module { name = 'a', body = 'return b + c' }
+    house.module { name = 'd', body = 'return a + e' }
+    expect(house.allDependenciesOf 'd').to.eql ['a', 'e', 'b', 'c']
+
+  it 'resolves dependencies in new modules'
+    house.module { name = 'x', body = 'return 234' }
+    house.resolve 'x'
+    house.module { name = 'y', body = 'return x + 1' }
+    expect(house.resolve 'y').to.equal 235
+
+  it 'resolves new dependencies in redefined modules'
+    house.module { name = 'x', body = 'return 1' }
+    house.module { name = 'y', body = 'return 2' }
+    house.resolve 'y'
+    house.module { name = 'y', body = 'return x' }
+    y = house.resolve 'y'
+    expect(y).to.equal 1
+
+  it 'updates modules without dependencies'
+    house.module { name = 'x', body = 'return 666' }
+    house.module { name = 'x', body = 'return 777' }
+    x = house.resolve 'x'
+    expect(x).to.equal 777
+
+  it 'updates modules with dependencies'
+    house.module { name = 'x', body = 'return 123' }
+    house.module { name = 'y', body = 'return x + 1' }
+    house.module { name = 'z', body = 'return y + 1' }
+    house.resolve 'z'
+    house.module { name = 'x', body = 'return 456' }
+    expect(house.resolve 'y').to.equal 457
+    expect(house.resolve 'z').to.equal 458
+
+  it 'fails to resolve modules without dependencies'
+    resolve () = house.resolve('x')
+    expect(resolve).to.throw "Module 'x' does not exist"
+
+  it 'fails to resolve modules with non-existent dependencies'
+    house.module { name = 'x', body = 'return 1' }
+    house.module { name = 'y', body = 'return z' }
+    resolve () = house.resolve('y')
+    expect(resolve).to.throw "Dependency 'z' does not exist"
+
+  it 'fails to resolve modules with dependencies that throw errors'
+    house.module { name = 'x', body = 'throw "oops"' }
+    house.module { name = 'y', body = 'x + 1' }
+    resolve () = house.resolve('y')
+    expect(resolve).to.throw "Failed to resolve dependency 'x'"
+
+  it 'fails to resolve modules with dependencies that have syntax errors'
+    house.module { name = 'x', body = 'happy =)' }
+    house.module { name = 'y', body = 'x + 1' }
+    resolve () = house.resolve('y')
+    expect(resolve).to.throw "Failed to resolve dependency 'x'"
+
+  it 'fails to resolve circular dependencies'
+    house.module { name = 'x', body = 'return x' }
+    resolve () = house.resolve('x')
+    expect(resolve).to.throw "Circular dependency in module 'x'"
+
+  it 'fails to resolve eventually circular dependencies'
+    house.module { name = 'x', body = 'return y' }
+    house.module { name = 'y', body = 'return x' }
+    resolve () = house.resolve('x')
+    expect(resolve).to.throw "Circular dependency in module 'x'"
+
+  it 'resolves CommonJS modules'
+    house.module { name = 'chai', resolved = require 'chai' }
+    chai = house.resolve 'chai'
+    expect (chai.expect).to.equal (expect)
+
+  it 'resolves CommonJS modules as dependencies'
+    house.module { name = 'chai', resolved = require 'chai' }
+    house.module { name = 'expect', body = 'return chai.expect' }
+    e = house.resolve 'expect'
+    expect (e).to.equal (expect)
+
+  describe 'when a module is removed'
+
+    it 'fails to resolve the module'
+      house.module { name = 'x', resolved = Number }
+      expect (house.resolve 'x').to.equal (Number)
+      house.remove 'x'
+      resolve () = house.resolve('x')
+      expect(resolve).to.throw "Module 'x' does not exist"
+
+    it 'fails to resolve dependant modules'
+      house.module { name = 'x', resolved = 123 }
+      house.module { name = 'y', body = 'return x + 1' }
+      expect(house.resolve 'y').to.equal 124
+      house.remove 'x'
+      resolve () = house.resolve('y')
+      expect(resolve).to.throw "Dependency 'x' does not exist"
+
+    it 'unresolves dependants of "greenhouse"'
+      house.module { name = 'x', body = 'return 101' }
+      house.module { name = 'greenhouse', resolved = house }
+      house.module { name = 'y', body = 'return greenhouse.resolve("x")' }
+      expect(house.resolve('y')).to.equal 101
+      house.remove 'x'
+      resolve () = house.resolve('y')
+      expect(resolve).to.throw "Module 'x' does not exist"
+
+  describe 'when a module is renamed'
+
+    it 'retains the module id'
+      house.module { name = 'x', resolved = 42 }
+      id = house.modules.x.id
+      house.rename 'x' 'y'
+      expect (house.modules.y.id).to.equal (id)
+
+    it 'can be resolved by the new name'
+      house.module { name = 'x', resolved = 84 }
+      house.rename 'x' 'y'
+      expect (house.resolve 'y').to.equal 84
+
+    it 'cannot be resolved by the old name'
+      house.module { name = 'x', resolved = 999 }
+      house.rename 'x' 'y'
+      threw = 'nothing thrown'
+      resolve () = house.resolve 'x'
+      expect(resolve).to.throw "Module 'x' does not exist"
+
+    it 'unresolves dependants of "greenhouse"'
+      house.module { name = 'x', body = 'return 111' }
+      house.module { name = 'greenhouse', resolved = house }
+      house.module { name = 'y', body = 'return greenhouse.resolve("x")' }
+      house.resolve 'x'
+      house.rename 'x' 'z'
+      resolve () = house.resolve 'y'
+      expect(resolve).to.throw "Module 'x' does not exist"
+      expect(typeof (house.resolve 'greenhouse')).to.equal 'object'
+
+  describe 'when a module is redefined'
+
+    it 'retains the module id'
+      house.module { name = 'x', body = 'return 1' }
+      id = house.modules.x.id
+      house.module { name = 'x', body = 'return 2' }
+      expect (house.modules.x.id).to.equal (id)
+
+    it 'updates the modules dependencies'
+      house.module { name = 'x', body = 'return 1' }
+      house.module { name = 'y', body = 'return 2' }
+      house.resolve 'y'
+      house.module { name = 'y', body = 'return x' }
+      expect (house.dependenciesOf('y')).to.eql(['x'])
+
+    it 'unresolves dependants of "greenhouse"'
+      house.module { name = 'x', body = 'return 888' }
+      house.module { name = 'greenhouse', resolved = house }
+      house.module { name = 'y', body = 'return greenhouse.resolve("x")' }
+      expect(house.resolve('y')).to.equal 888
+      house.module { name = 'x', body = 'return 777' }
+      expect(house.resolve('y')).to.equal 777
+      expect(typeof (house.resolve 'greenhouse')).to.equal 'object'
