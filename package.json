@@ -1,14 +1,14 @@
 {
   "name": "greenhouse",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "reactive dependency inversion container",
   "main": "index.js",
   "scripts": {
     "test": "mocha",
     "prepublish": "pogo -c index.pogo"
   },
-  "author": "",
-  "license": "ISC",
+  "author": "Josh Chisholm",
+  "license": "BSD",
   "devDependencies": {
     "bluebird": "^2.9.33",
     "chai": "^3.0.0",
