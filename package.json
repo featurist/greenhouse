@@ -3,6 +3,7 @@
   "version": "1.0.2",
   "description": "reactive dependency inversion container",
   "main": "index.js",
+  "files": ["*.js"],
   "scripts": {
     "test": "mocha",
     "prepublish": "pogo -c index.pogo"
