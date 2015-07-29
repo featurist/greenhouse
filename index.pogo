@@ -44,7 +44,8 @@ defineModule (repo, definition) =
   else
     definition.id = nextId ()
     repo.modules.(definition.name) = definition
-    parseModuleDependencies (repo, definition)
+
+  parseModuleDependencies (repo, definition)
 
 resolveModuleNamed (repo, name) =
   mod = repo.modules.(name)
@@ -95,26 +96,30 @@ allDependenciesOf (repo, name) =
 
 detectCircularDependencies (repo, name) =
   if (allDependenciesOf (repo, name).indexOf (name) > -1)
-    @throw @new Error("Circular dependency in module '#(name)'")
+    error = @new Error("Circular dependency in module '#(name)'")
+    repo.modules.(name).resolved = error
+    @throw error
 
 resolveModule (repo, mod) =
-  if (@not mod.resolved)
+  if (@not mod.dependencies)
+    parseModuleDependencies (repo, mod)
 
-    if (@not mod.dependencies)
-      parseModuleDependencies (repo, mod)
+  factory = @new Function(mod.dependencies, mod.body)
+  resolvedDependencies = []
+  for each @(dep) in (mod.dependencies)
+    try
+      r = resolveModuleNamed (repo, dep)
+    catch (e)
+      if (e.toString().match(r/Module '.+' does not exist$/))
+        nonExistent = @new Error("Dependency '#(dep)' does not exist")
+        mod.resolved = nonExistent
+        @throw nonExistent
+      else
+        errored = @new Error("Failed to resolve dependency '#(dep)'")
+        mod.resolved = errored
+        @throw errored
 
-    factory = @new Function(mod.dependencies, mod.body)
-    resolvedDependencies = []
-    for each @(dep) in (mod.dependencies)
-      try
-        r = resolveModuleNamed (repo, dep)
-      catch (e)
-        if (e.toString().match(r/Module '.+' does not exist$/))
-          @throw @new Error("Dependency '#(dep)' does not exist")
-        else
-          @throw @new Error("Failed to resolve dependency '#(dep)'")
-
-      resolvedDependencies.push (r)
+    resolvedDependencies.push (r)
 
   mod.resolved = factory.apply (null, resolvedDependencies)
 

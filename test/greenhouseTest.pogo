@@ -62,7 +62,9 @@ describe 'Greenhouse'
     house.module { name = 'x', body = 'return 1' }
     house.module { name = 'y', body = 'return z' }
     resolve () = house.resolve('y')
-    expect(resolve).to.throw "Dependency 'z' does not exist"
+    message = "Dependency 'z' does not exist"
+    expect(resolve).to.throw (message)
+    expect(house.modules.y.resolved.toString()).to.equal "Error: #(message)"
 
   it 'fails to resolve modules with dependencies that throw errors'
     house.module { name = 'x', body = 'throw "oops"' }
@@ -74,12 +76,16 @@ describe 'Greenhouse'
     house.module { name = 'x', body = 'happy =)' }
     house.module { name = 'y', body = 'x + 1' }
     resolve () = house.resolve('y')
-    expect(resolve).to.throw "Failed to resolve dependency 'x'"
+    message = "Failed to resolve dependency 'x'"
+    expect(resolve).to.throw (message)
+    expect(house.modules.y.resolved.toString()).to.equal "Error: #(message)"
 
   it 'fails to resolve circular dependencies'
     house.module { name = 'x', body = 'return x' }
     resolve () = house.resolve('x')
-    expect(resolve).to.throw "Circular dependency in module 'x'"
+    message = "Circular dependency in module 'x'"
+    expect(resolve).to.throw (message)
+    expect(house.modules.x.resolved.toString()).to.equal "Error: #(message)"
 
   it 'fails to resolve eventually circular dependencies'
     house.module { name = 'x', body = 'return y' }
