@@ -1,10 +1,11 @@
 {
   "name": "greenhouse",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "reactive dependency inversion container",
   "main": "index.js",
   "scripts": {
-    "test": "mocha"
+    "test": "mocha",
+    "prepublish": "pogo -c index.pogo"
   },
   "author": "",
   "license": "ISC",
