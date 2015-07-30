@@ -23,7 +23,7 @@ describe 'Greenhouse'
   it 'finds all dependencies without resolving them'
     house.module { name = 'a', body = 'return b + c' }
     house.module { name = 'd', body = 'return a + e' }
-    expect(house.allDependenciesOf 'd').to.eql ['a', 'e', 'b', 'c']
+    expect(house.eventualDependenciesOf 'd').to.eql ['a', 'e', 'b', 'c']
 
   it 'resolves dependencies in new modules'
     house.module { name = 'x', body = 'return 234' }
@@ -79,28 +79,6 @@ describe 'Greenhouse'
     message = "Failed to resolve dependency 'x'"
     expect(resolve).to.throw (message)
     expect(house.modules.y.resolved.toString()).to.equal "Error: #(message)"
-
-  it 'fails to resolve circular dependencies'
-    house.module { name = 'x', body = 'return x' }
-    resolve () = house.resolve('x')
-    message = "Circular dependency in module 'x'"
-    expect(resolve).to.throw (message)
-    expect(house.modules.x.resolved.toString()).to.equal "Error: #(message)"
-
-  it 'fails to resolve eventually circular dependencies'
-    house.module { name = 'x', body = 'return y' }
-    house.module { name = 'y', body = 'return x' }
-    resolve () = house.resolve('x')
-    message = "Circular dependency in module 'x'"
-    expect(resolve).to.throw (message)
-    expect(house.modules.x.resolved.toString()).to.equal "Error: #(message)"
-
-  it 'updates modules with circular dependencies'
-    house.module { name = 'x', body = 'return x + 1' }
-    resolve () = house.resolve('x')
-    expect(resolve).to.throw
-    house.module { name = 'x', body = 'return 1' }
-    expect(resolve()).to.equal 1
 
   it 'resolves CommonJS modules'
     house.module { name = 'chai', resolved = require 'chai' }
@@ -192,3 +170,59 @@ describe 'Greenhouse'
       house.module { name = 'x', body = 'return 777' }
       expect(house.resolve('y')).to.equal 777
       expect(typeof (house.resolve 'greenhouse')).to.equal 'object'
+
+  describe 'when a module refers to itself directly'
+
+    it 'enumerates the modules dependants'
+      house.module { name = 'x', body = 'return x' }
+      expect(house.dependantsOf('x')).to.eql ['x']
+
+    it 'enumerates the modules eventual dependants'
+      house.module { name = 'x', body = 'return x' }
+      expect(house.eventualDependantsOf('x')).to.eql ['x']
+
+    it 'fails to resolve the module'
+      house.module { name = 'x', body = 'return x' }
+      resolve () = house.resolve('x')
+      message = "Circular dependency in module 'x'"
+      expect(resolve).to.throw (message)
+      expect(house.modules.x.resolved.toString()).to.equal "Error: #(message)"
+
+    it 'allows the module to be updated'
+      house.module { name = 'x', body = 'return x + 1' }
+      resolve () = house.resolve('x')
+      expect(resolve).to.throw
+      house.module { name = 'x', body = 'return 1' }
+      expect(resolve()).to.equal 1
+
+  describe 'when a module eventually depends on itself'
+
+    it 'enumerates the modules dependants'
+      house.module { name = 'x', body = 'return y' }
+      house.module { name = 'y', body = 'return x' }
+      expect(house.dependantsOf('x')).to.eql ['y']
+      expect(house.dependantsOf('y')).to.eql ['x']
+
+    it 'enumerates the modules eventual dependants'
+      house.module { name = 'x', body = 'return z' }
+      house.module { name = 'y', body = 'return x' }
+      house.module { name = 'z', body = 'return y' }
+      expect(house.eventualDependantsOf('x')).to.eql ['y', 'z', 'x']
+      expect(house.eventualDependantsOf('y')).to.eql ['z', 'x', 'y']
+      expect(house.eventualDependantsOf('z')).to.eql ['x', 'y', 'z']
+
+    it 'fails to resolve the module'
+      house.module { name = 'x', body = 'return y' }
+      house.module { name = 'y', body = 'return x' }
+      resolve () = house.resolve('x')
+      message = "Circular dependency in module 'x'"
+      expect(resolve).to.throw (message)
+      expect(house.modules.x.resolved.toString()).to.equal "Error: #(message)"
+
+    it 'allows the module to be updated'
+      house.module { name = 'x', body = 'return y' }
+      house.module { name = 'y', body = 'return x' }
+      resolve () = house.resolve('x')
+      expect(resolve).to.throw
+      house.module { name = 'x', body = 'return 1' }
+      expect(resolve()).to.equal 1

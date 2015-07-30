@@ -47,7 +47,7 @@ describe 'Greenhouse'
     house.module {
       name = 'findAllTests'
       body = "return greenhouse.moduleNames().filter(function(name) {
-                return greenhouse.allDependenciesOf(name).indexOf('test') > -1; });
+                return greenhouse.eventualDependenciesOf(name).indexOf('test') > -1; });
              "
     }
     house.module {

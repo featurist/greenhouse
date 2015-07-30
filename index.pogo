@@ -12,7 +12,11 @@ Greenhouse.prototype = {
 
   dependenciesOf (name) = dependenciesOf (self, name)
 
-  allDependenciesOf (name) = allDependenciesOf (self, name)
+  dependantsOf (name) = dependantsOf (self, name)
+
+  eventualDependenciesOf (name) = eventualDependenciesOf (self, name)
+
+  eventualDependantsOf (name) = eventualDependantsOf (self, name)
 
   moduleNames () = Object.keys(self.modules).sort()
 
@@ -65,6 +69,27 @@ renameModule (repo, oldName, newName) =
   existing.name = newName
   repo.modules.(newName) = existing
 
+dependantsOf (repo, name) =
+  dependants = []
+  for each @(key) in (Object.keys(repo.modules))
+    mod = repo.modules.(key)
+    if ((mod.dependencies || []).indexOf(name) > -1)
+      dependants.push (key)
+
+  dependants
+
+eventualDependantsOf (repo, name) =
+  deps = []
+  stack = [].concat (dependantsOf (repo, name))
+  while (stack.length > 0)
+    n = stack.shift()
+    if (deps.indexOf(n) == -1)
+      deps.push (n)
+      for each @(d) in (dependantsOf(repo, n))
+        stack.push (d)
+
+  deps
+
 dependenciesOf (repo, name) =
   m = repo.modules.(name)
   if (m)
@@ -82,7 +107,7 @@ parseModuleDependencies (repo, m) =
   else
     m.dependencies = []
 
-allDependenciesOf (repo, name) =
+eventualDependenciesOf (repo, name) =
   deps = []
   stack = [].concat (dependenciesOf (repo, name))
   while (stack.length > 0)
@@ -95,7 +120,7 @@ allDependenciesOf (repo, name) =
   deps
 
 detectCircularDependencies (repo, name) =
-  if (allDependenciesOf (repo, name).indexOf (name) > -1)
+  if (eventualDependenciesOf (repo, name).indexOf (name) > -1)
     error = @new Error("Circular dependency in module '#(name)'")
     repo.modules.(name).resolved = error
     @throw error
@@ -124,11 +149,9 @@ resolveModule (repo, mod) =
   mod.resolved = factory.apply (null, resolvedDependencies)
 
 unresolveDependants (repo, name) =
-  for each @(key) in (Object.keys(repo.modules))
-    if (key != name)
-      mod = repo.modules.(key)
-      if ((mod.dependencies || []).indexOf(name) > -1)
-        delete (mod.resolved)
-        unresolveDependants (repo, mod.name)
+  deps = eventualDependantsOf (repo, name)
+  for each @(key) in (deps)
+    mod = repo.modules.(key)
+    delete (mod.resolved)
 
 module.exports = Greenhouse
