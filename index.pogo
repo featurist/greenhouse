@@ -125,9 +125,10 @@ resolveModule (repo, mod) =
 
 unresolveDependants (repo, name) =
   for each @(key) in (Object.keys(repo.modules))
-    mod = repo.modules.(key)
-    if ((mod.dependencies || []).indexOf(name) > -1)
-      delete (mod.resolved)
-      unresolveDependants (repo, mod.name)
+    if (key != name)
+      mod = repo.modules.(key)
+      if ((mod.dependencies || []).indexOf(name) > -1)
+        delete (mod.resolved)
+        unresolveDependants (repo, mod.name)
 
 module.exports = Greenhouse

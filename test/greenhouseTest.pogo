@@ -91,7 +91,16 @@ describe 'Greenhouse'
     house.module { name = 'x', body = 'return y' }
     house.module { name = 'y', body = 'return x' }
     resolve () = house.resolve('x')
-    expect(resolve).to.throw "Circular dependency in module 'x'"
+    message = "Circular dependency in module 'x'"
+    expect(resolve).to.throw (message)
+    expect(house.modules.x.resolved.toString()).to.equal "Error: #(message)"
+
+  it 'updates modules with circular dependencies'
+    house.module { name = 'x', body = 'return x + 1' }
+    resolve () = house.resolve('x')
+    expect(resolve).to.throw
+    house.module { name = 'x', body = 'return 1' }
+    expect(resolve()).to.equal 1
 
   it 'resolves CommonJS modules'
     house.module { name = 'chai', resolved = require 'chai' }
