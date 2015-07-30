@@ -1,6 +1,6 @@
 {
   "name": "greenhouse",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "reactive dependency inversion container",
   "main": "index.js",
   "files": [
