@@ -127,24 +127,23 @@ Greenhouse.prototype = {
 
 }
 
+lastUnique (value, index, array) = array.lastIndexOf(value) == index
+
 walk (first, more) =
   result = []
+  walked = {}
   stack = [].concat (more(first))
   while (stack.length > 0)
     n = stack.shift ()
-    i = result.indexOf (n)
-    if (i == -1)
-      result.push (n)
-      rest = more (n)
-      for each @(r) in (rest)
-        j = result.indexOf(r)
-        if (j > -1)
-          k = result.splice (j, 1)
-          result.push (k.0)
-        else
-          stack.push (r)
+    result.push (n)
+    rest = more (n)
+    for each @(r) in (rest)
+      if (stack.indexOf(r) == -1 @and r != first)
+        stack.push (r)
 
-  result
+      result.push (r)
+
+  result.filter(lastUnique)
 
 detectCircularDependencies (repo, name) =
   if (repo.eventualDependenciesOf (name).indexOf (name) > -1)
