@@ -21,11 +21,14 @@ describe 'Greenhouse'
     expect(house.dependenciesOf 'a').to.eql ['b', 'c']
 
   it 'finds eventual dependencies without resolving them'
-    house.module { name = 'g', body = 'return b + 1' }
-    house.module { name = 'a', body = 'return b + c' }
-    house.module { name = 'd', body = 'return a + e + g' }
-    house.module { name = 'f', body = 'return g + 1' }
-    expect(house.eventualDependenciesOf 'd').to.eql ['a', 'c', 'e', 'g', 'b']
+    house.module { name = 'a', body = 'return 42' }
+    house.module { name = 'b', body = 'return a' }
+    house.module { name = 'c', body = 'return a + b' }
+    house.module { name = 'd', body = 'return a + c' }
+    house.module { name = 'e', body = 'return d' }
+    house.module { name = 'f', body = 'return d' }
+    house.module { name = 'g', body = 'return e + f - d' }
+    expect(house.eventualDependenciesOf 'g').to.eql ['e', 'f', 'd', 'c', 'b', 'a']
 
   it 'resolves dependencies in new modules'
     house.module { name = 'x', body = 'return 234' }
