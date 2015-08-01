@@ -14,7 +14,18 @@ Module (definition) =
   this
 
 Module.prototype = {
+
+  parseBody () =
+    if (self.body)
+      try
+        self.dependencies = esglobals "function _() { #(self.body) }"
+      catch (e)
+        self.dependencies = []
+    else
+      self.dependencies = []
+
   toString() = "[Module #(self.name)]"
+
 }
 
 Greenhouse () =
@@ -67,7 +78,7 @@ defineModule (repo, definition) =
     mod := @new Module(definition)
     repo.modules.(definition.name) = mod
 
-  parseModuleDependencies (repo, mod)
+  mod.parseBody()
 
 resolveModuleNamed (repo, name) =
   mod = repo.modules.(name)
@@ -112,18 +123,9 @@ dependenciesOf (repo, name) =
   m = repo.modules.(name)
   if (m)
     if (!m.dependencies @and m.body :: String)
-      parseModuleDependencies(repo, m)
+      m.parseBody()
 
   (m @and m.dependencies) || []
-
-parseModuleDependencies (repo, m) =
-  if (m.body)
-    try
-      m.dependencies = esglobals "function _() { #(m.body) }"
-    catch (e)
-      m.dependencies = []
-  else
-    m.dependencies = []
 
 eventualDependenciesOf (repo, name) =
   deps = []
@@ -145,7 +147,7 @@ detectCircularDependencies (repo, name) =
 
 resolveModule (repo, mod) =
   if (@not mod.dependencies)
-    parseModuleDependencies (repo, mod)
+    mod.parseBody()
 
   factory = @new Function(mod.dependencies, mod.body)
   resolvedDependencies = []
