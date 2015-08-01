@@ -1,7 +1,6 @@
 esglobals = require 'esglobals'
 
 Module (definition) =
-  this.id = nextId()
   this.name = definition.name
 
   if ('resolved' in (definition))
@@ -11,29 +10,31 @@ Module (definition) =
     this.body = definition.body
     this.parseBody ()
 
+  this.id = Module.nextId || 0
+  Module.nextId = this.id + 1
   this
 
 Module.prototype = {
 
   resolve (repo) =
+    resolvedDependencies = self.dependencies.map @(name)
+      self.resolveDependency (repo, name)
+
     factory = @new Function(self.dependencies, self.body)
-    resolvedDependencies = []
-    for each @(dep) in (self.dependencies)
-      try
-        r = resolveModuleNamed (repo, dep)
-      catch (e)
-        if (e.noSuchModule)
-          nonExistent = @new Error("Dependency '#(dep)' does not exist")
-          self.resolved = nonExistent
-          @throw nonExistent
-        else
-          errored = @new Error("Failed to resolve dependency '#(dep)'")
-          self.resolved = errored
-          @throw errored
-
-      resolvedDependencies.push (r)
-
     self.resolved = factory.apply (null, resolvedDependencies)
+
+  resolveDependency (repo, name) =
+    try
+      r = repo.resolve (name)
+    catch (e)
+      if (e.noSuchModule)
+        nonExistent = @new Error("Dependency '#(name)' does not exist")
+        self.resolved = nonExistent
+        @throw nonExistent
+      else
+        errored = @new Error("Failed to resolve dependency '#(name)'")
+        self.resolved = errored
+        @throw errored
 
   unresolve () =
     delete (self.resolved)
@@ -59,119 +60,93 @@ Module.prototype = {
 
 Greenhouse () =
   this.modules = {}
+  this.moduleList = []
   this
 
 Greenhouse.prototype = {
 
   resolve (name) =
     detectCircularDependencies (self, name)
-    resolveModuleNamed (self, name)
+    mod = self.modules.(name)
+    if (mod)
+      mod.resolved = mod.resolved @or mod.resolve (self)
+    else
+      e = @new Error "Module '#(name)' does not exist"
+      e.noSuchModule = true
+      @throw e
 
-  dependenciesOf (name) = dependenciesOf (self, name)
+  dependenciesOf (name) =
+    m = self.modules.(name)
+    (m @and m.dependencies) @or []
 
-  dependantsOf (name) = dependantsOf (self, name)
+  dependantsOf (name) =
+    [
+      mod <- self.moduleList
+      mod.dependencies
+      mod.dependencies.indexOf (name) > -1
+      mod.name
+    ]
 
-  eventualDependenciesOf (name) = eventualDependenciesOf (self, name)
+  eventualDependenciesOf (name) =
+    walk (name) @(n)
+      self.dependenciesOf (n)
 
-  eventualDependantsOf (name) = eventualDependantsOf (self, name)
+  eventualDependantsOf (name) =
+    walk (name) @(n)
+      self.dependantsOf (n)
 
-  moduleNames () = Object.keys(self.modules).sort()
+  moduleNames () =
+    Object.keys(self.modules).sort()
 
-  module (definition) = defineModule (self, definition)
+  module (definition) =
+    unresolveDependants (self, 'greenhouse')
+    mod = self.modules.(definition.name)
+    if (mod)
+      unresolveDependants (self, mod.name)
+      mod.updateBody (definition.body)
+    else
+      newModule = @new Module (definition)
+      self.modules.(definition.name) = newModule
+      self.moduleList.push (newModule)
 
   remove (name) =
     unresolveDependants (self, 'greenhouse')
     unresolveDependants (self, name)
     delete (self.modules.(name))
+    self.moduleList = [m <- self.moduleList, m.name != name, m]
 
-  rename (oldName, newName) = renameModule (self, oldName, newName)
+  rename (oldName, newName) =
+    unresolveDependants (self, 'greenhouse')
+    unresolveDependants (self, oldName)
+    existing = self.modules.(oldName)
+    delete (self.modules.(oldName))
+    existing.name = newName
+    self.modules.(newName) = existing
 
   toString() = "Greenhouse"
 
 }
 
-nextId () =
-  nextId.id = (nextId.id @or 0) + 1
-  nextId.id
-
-defineModule (repo, definition) =
-  unresolveDependants (repo, 'greenhouse')
-  mod = repo.modules.(definition.name)
-  if (mod)
-    unresolveDependants (repo, mod.name)
-    mod.updateBody (definition.body)
-  else
-    repo.modules.(definition.name) = @new Module (definition)
-
-resolveModuleNamed (repo, name) =
-  mod = repo.modules.(name)
-  if (mod)
-    if (@not mod.resolved)
-      mod.resolve(repo)
-
-    mod.resolved
-  else
-    e = @new Error "Module '#(name)' does not exist"
-    e.noSuchModule = true
-    @throw e
-
-renameModule (repo, oldName, newName) =
-  unresolveDependants (repo, 'greenhouse')
-  unresolveDependants (repo, oldName)
-  existing = repo.modules.(oldName)
-  delete (repo.modules.(oldName))
-  existing.name = newName
-  repo.modules.(newName) = existing
-
-dependantsOf (repo, name) =
-  [
-    key <- Object.keys(repo.modules)
-    mod = repo.modules.(key)
-    mod.dependencies :: Array
-    mod.dependencies.indexOf (name) > -1
-    mod.name
-  ]
-
-eventualDependantsOf (repo, name) =
-  deps = []
-  stack = [].concat (dependantsOf (repo, name))
+walk (first, more) =
+  result = []
+  stack = [].concat (more(first))
   while (stack.length > 0)
     n = stack.shift()
-    if (deps.indexOf(n) == -1)
-      deps.push (n)
-      for each @(d) in (dependantsOf(repo, n))
-        stack.push (d)
+    if (result.indexOf(n) == -1)
+      result.push (n)
+      stack := stack.concat (more (n))
 
-  deps
-
-dependenciesOf (repo, name) =
-  m = repo.modules.(name)
-  if (m)
-    m.dependencies
-  else
-    []
-
-eventualDependenciesOf (repo, name) =
-  deps = []
-  stack = [].concat (dependenciesOf (repo, name))
-  while (stack.length > 0)
-    n = stack.shift()
-    if (deps.indexOf(n) == -1)
-      deps.push (n)
-      for each @(d) in (dependenciesOf(repo, n))
-        stack.push (d)
-
-  deps
+  result
 
 detectCircularDependencies (repo, name) =
-  if (eventualDependenciesOf (repo, name).indexOf (name) > -1)
+  if (repo.eventualDependenciesOf (name).indexOf (name) > -1)
     error = @new Error("Circular dependency in module '#(name)'")
     repo.modules.(name).resolved = error
     @throw error
 
 unresolveDependants (repo, name) =
   [
-    d <- eventualDependantsOf (repo, name)
+    d <- repo.eventualDependantsOf (name)
     repo.modules.(d).unresolve()
   ]
 
