@@ -132,9 +132,13 @@ walk (first, more) =
   stack = [].concat (more(first))
   while (stack.length > 0)
     n = stack.shift()
-    if (result.indexOf(n) == -1)
+    i = result.indexOf(n)
+    if (i == -1)
       result.push (n)
-      stack := stack.concat (more (n))
+      stack := more (n).concat(stack)
+    else
+      r = result.splice(i, 1)
+      result.push(r.0)
 
   result
 

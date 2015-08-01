@@ -20,10 +20,12 @@ describe 'Greenhouse'
     house.module { name = 'a', body = 'return b + c' }
     expect(house.dependenciesOf 'a').to.eql ['b', 'c']
 
-  it 'finds all dependencies without resolving them'
+  it 'finds eventual dependencies without resolving them'
+    house.module { name = 'g', body = 'return b + 1' }
     house.module { name = 'a', body = 'return b + c' }
-    house.module { name = 'd', body = 'return a + e' }
-    expect(house.eventualDependenciesOf 'd').to.eql ['a', 'e', 'b', 'c']
+    house.module { name = 'd', body = 'return a + e + g' }
+    house.module { name = 'f', body = 'return g + 1' }
+    expect(house.eventualDependenciesOf 'd').to.eql ['a', 'c', 'e', 'g', 'b']
 
   it 'resolves dependencies in new modules'
     house.module { name = 'x', body = 'return 234' }
@@ -216,9 +218,9 @@ describe 'Greenhouse'
       house.module { name = 'x', body = 'return z' }
       house.module { name = 'y', body = 'return x' }
       house.module { name = 'z', body = 'return y' }
-      expect(house.eventualDependantsOf('x')).to.eql ['y', 'z', 'x']
-      expect(house.eventualDependantsOf('y')).to.eql ['z', 'x', 'y']
-      expect(house.eventualDependantsOf('z')).to.eql ['x', 'y', 'z']
+      expect(house.eventualDependantsOf('x')).to.eql ['z', 'x', 'y']
+      expect(house.eventualDependantsOf('y')).to.eql ['x', 'y', 'z']
+      expect(house.eventualDependantsOf('z')).to.eql ['y', 'z', 'x']
 
     it 'fails to resolve the module'
       house.module { name = 'x', body = 'return y' }
