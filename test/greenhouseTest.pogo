@@ -91,6 +91,15 @@ describe 'Greenhouse'
     e = house.resolve 'expect'
     expect (e).to.equal (expect)
 
+  describe 'when a module is defined'
+
+    it 'unresolves dependants of the new module'
+      house.module { name = 'x', body = 'return y + 1' }
+      resolve () = house.resolve 'x'
+      expect (resolve).to.throw "Dependency 'y' does not exist"
+      house.module { name = 'y', body = 'return 123' }
+      expect (resolve()).to.equal 124
+
   describe 'when a module is removed'
 
     it 'fails to resolve the module'

@@ -100,9 +100,9 @@ Greenhouse.prototype = {
 
   module (definition) =
     unresolveDependants (self, 'greenhouse')
+    unresolveDependants (self, definition.name)
     mod = self.modules.(definition.name)
     if (mod)
-      unresolveDependants (self, mod.name)
       mod.updateBody (definition.body)
     else
       newModule = @new Module (definition)
