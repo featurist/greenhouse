@@ -3,17 +3,38 @@ esglobals = require 'esglobals'
 Module (definition) =
   this.id = nextId()
   this.name = definition.name
-  this.body = definition.body
 
   if ('resolved' in (definition))
     this.resolved = definition.resolved
-
-  if (definition.dependencies :: Array)
-    this.dependencies = definition.dependencies
+    this.dependencies = []
+  else if ('body' in (definition))
+    this.body = definition.body
+    this.parseBody ()
 
   this
 
 Module.prototype = {
+
+  resolve (repo) =
+    factory = @new Function(self.dependencies, self.body)
+    resolvedDependencies = []
+    for each @(dep) in (self.dependencies)
+      try
+        r = resolveModuleNamed (repo, dep)
+      catch (e)
+        if (e.toString().match(r/Module '.+' does not exist$/))
+          nonExistent = @new Error("Dependency '#(dep)' does not exist")
+          self.resolved = nonExistent
+          @throw nonExistent
+        else
+          errored = @new Error("Failed to resolve dependency '#(dep)'")
+          self.resolved = errored
+          @throw errored
+
+      resolvedDependencies.push (r)
+
+    self.resolved = factory.apply (null, resolvedDependencies)
+
 
   parseBody () =
     if (self.body)
@@ -23,6 +44,12 @@ Module.prototype = {
         self.dependencies = []
     else
       self.dependencies = []
+
+  updateBody (body) =
+    delete (self.resolved)
+    delete (self.dependencies)
+    self.body = body
+    self.parseBody ()
 
   toString() = "[Module #(self.name)]"
 
@@ -70,21 +97,16 @@ defineModule (repo, definition) =
   mod = repo.modules.(definition.name)
   if (mod)
     unresolveDependants (repo, mod.name)
-    delete (mod.resolved)
-    delete (mod.dependencies)
-    mod.body = definition.body
+    mod.updateBody (definition.body)
   else
-    definition.id = nextId ()
-    mod := @new Module(definition)
+    mod := @new Module (definition)
     repo.modules.(definition.name) = mod
-
-  mod.parseBody()
 
 resolveModuleNamed (repo, name) =
   mod = repo.modules.(name)
   if (mod)
     if (!mod.resolved)
-      resolveModule (repo, mod)
+      mod.resolve(repo)
 
     mod.resolved
   else
@@ -122,10 +144,9 @@ eventualDependantsOf (repo, name) =
 dependenciesOf (repo, name) =
   m = repo.modules.(name)
   if (m)
-    if (!m.dependencies @and m.body :: String)
-      m.parseBody()
-
-  (m @and m.dependencies) || []
+    m.dependencies
+  else
+    []
 
 eventualDependenciesOf (repo, name) =
   deps = []
@@ -144,29 +165,6 @@ detectCircularDependencies (repo, name) =
     error = @new Error("Circular dependency in module '#(name)'")
     repo.modules.(name).resolved = error
     @throw error
-
-resolveModule (repo, mod) =
-  if (@not mod.dependencies)
-    mod.parseBody()
-
-  factory = @new Function(mod.dependencies, mod.body)
-  resolvedDependencies = []
-  for each @(dep) in (mod.dependencies)
-    try
-      r = resolveModuleNamed (repo, dep)
-    catch (e)
-      if (e.toString().match(r/Module '.+' does not exist$/))
-        nonExistent = @new Error("Dependency '#(dep)' does not exist")
-        mod.resolved = nonExistent
-        @throw nonExistent
-      else
-        errored = @new Error("Failed to resolve dependency '#(dep)'")
-        mod.resolved = errored
-        @throw errored
-
-    resolvedDependencies.push (r)
-
-  mod.resolved = factory.apply (null, resolvedDependencies)
 
 unresolveDependants (repo, name) =
   deps = eventualDependantsOf (repo, name)
