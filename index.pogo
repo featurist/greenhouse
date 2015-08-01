@@ -1,5 +1,22 @@
 esglobals = require 'esglobals'
 
+Module (definition) =
+  this.id = nextId()
+  this.name = definition.name
+  this.body = definition.body
+
+  if ('resolved' in (definition))
+    this.resolved = definition.resolved
+
+  if (definition.dependencies :: Array)
+    this.dependencies = definition.dependencies
+
+  this
+
+Module.prototype = {
+  toString() = "[Module #(self.name)]"
+}
+
 Greenhouse () =
   this.modules = {}
   this
@@ -39,17 +56,18 @@ nextId () =
 
 defineModule (repo, definition) =
   unresolveDependants (repo, 'greenhouse')
-  existingModule = repo.modules.(definition.name)
-  if (existingModule)
-    unresolveDependants (repo, definition.name)
-    delete (existingModule.resolved)
-    delete (existingModule.dependencies)
-    existingModule.body = definition.body
+  mod = repo.modules.(definition.name)
+  if (mod)
+    unresolveDependants (repo, mod.name)
+    delete (mod.resolved)
+    delete (mod.dependencies)
+    mod.body = definition.body
   else
     definition.id = nextId ()
-    repo.modules.(definition.name) = definition
+    mod := @new Module(definition)
+    repo.modules.(definition.name) = mod
 
-  parseModuleDependencies (repo, definition)
+  parseModuleDependencies (repo, mod)
 
 resolveModuleNamed (repo, name) =
   mod = repo.modules.(name)
