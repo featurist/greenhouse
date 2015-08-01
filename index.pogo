@@ -22,7 +22,7 @@ Module.prototype = {
       try
         r = resolveModuleNamed (repo, dep)
       catch (e)
-        if (e.toString().match(r/Module '.+' does not exist$/))
+        if (e.noSuchModule)
           nonExistent = @new Error("Dependency '#(dep)' does not exist")
           self.resolved = nonExistent
           @throw nonExistent
@@ -111,7 +111,9 @@ resolveModuleNamed (repo, name) =
 
     mod.resolved
   else
-    @throw @new Error "Module '#(name)' does not exist"
+    e = @new Error "Module '#(name)' does not exist"
+    e.noSuchModule = true
+    @throw e
 
 renameModule (repo, oldName, newName) =
   unresolveDependants (repo, 'greenhouse')
@@ -122,13 +124,13 @@ renameModule (repo, oldName, newName) =
   repo.modules.(newName) = existing
 
 dependantsOf (repo, name) =
-  dependants = []
-  for each @(key) in (Object.keys(repo.modules))
+  [
+    key <- Object.keys(repo.modules)
     mod = repo.modules.(key)
-    if ((mod.dependencies || []).indexOf(name) > -1)
-      dependants.push (key)
-
-  dependants
+    mod.dependencies :: Array
+    mod.dependencies.indexOf (name) > -1
+    mod.name
+  ]
 
 eventualDependantsOf (repo, name) =
   deps = []
@@ -171,6 +173,6 @@ unresolveDependants (repo, name) =
   [
     d <- eventualDependantsOf (repo, name)
     repo.modules.(d).unresolve()
-  ]    
+  ]
 
 module.exports = Greenhouse
