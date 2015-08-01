@@ -35,6 +35,8 @@ Module.prototype = {
 
     self.resolved = factory.apply (null, resolvedDependencies)
 
+  unresolve () =
+    delete (self.resolved)
 
   parseBody () =
     if (self.body)
@@ -99,13 +101,12 @@ defineModule (repo, definition) =
     unresolveDependants (repo, mod.name)
     mod.updateBody (definition.body)
   else
-    mod := @new Module (definition)
-    repo.modules.(definition.name) = mod
+    repo.modules.(definition.name) = @new Module (definition)
 
 resolveModuleNamed (repo, name) =
   mod = repo.modules.(name)
   if (mod)
-    if (!mod.resolved)
+    if (@not mod.resolved)
       mod.resolve(repo)
 
     mod.resolved
@@ -167,9 +168,9 @@ detectCircularDependencies (repo, name) =
     @throw error
 
 unresolveDependants (repo, name) =
-  deps = eventualDependantsOf (repo, name)
-  for each @(key) in (deps)
-    mod = repo.modules.(key)
-    delete (mod.resolved)
+  [
+    d <- eventualDependantsOf (repo, name)
+    repo.modules.(d).unresolve()
+  ]    
 
 module.exports = Greenhouse
