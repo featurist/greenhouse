@@ -138,10 +138,12 @@ walk (first, more) =
     result.push (n)
     rest = more (n)
     for each @(r) in (rest)
-      if (stack.indexOf(r) == -1 @and r != first)
+      if (stack.indexOf(r) == -1 @and r != first @and (@not walked.(n)))
         stack.push (r)
 
       result.push (r)
+
+    walked.(n) = true  
 
   result.filter(lastUnique)
 

@@ -218,6 +218,14 @@ describe 'Greenhouse'
       house.module { name = 'x', body = 'return 1' }
       expect(resolve()).to.equal 1
 
+  describe 'when there is a triangular dependency'
+
+    it 'enumerates the modules eventual dependancies'
+      house.module { name = 'x', body = 'return y' }
+      house.module { name = 'z', body = 'return y' }
+      house.module { name = 'y', body = 'return z' }
+      expect(house.eventualDependenciesOf('x')).to.eql ['y', 'z']
+
   describe 'when a module eventually depends on itself'
 
     it 'enumerates the modules dependants'
